@@ -1,0 +1,40 @@
+{
+    # Cloud Run ortamında admin API'ye gerek yok
+    admin off
+
+    log {
+        level WARN
+    }
+
+    # Cloud Run TLS'i dışarıda sonlandırır ve container'a h2c iletir
+    # gRPC HTTP/2 zorunlu kılar; bu ayar olmadan gRPC bağlantıları başarısız olur
+    servers {
+        protocols h1 h2c
+    }
+}
+
+# Cloud Run PORT env var'ını kullanır, varsayılan 8080
+:{$PORT:8080} {
+
+    reverse_proxy h2c://{$ORIGIN_IP}:{$ORIGIN_PORT} {
+        # Orijinal Host bilgisini sunucuya iletir
+        header_up Host {$ORIGIN_IP}
+
+        # gRPC ve uzun süreli streaming için tamponlama devre dışı
+        flush_interval -1
+
+        transport http {
+            # Upstream'e h2c (cleartext HTTP/2) ile bağlan
+            versions h2c
+
+            # Bağlantı süreleri
+            dial_timeout     10s
+            keepalive        3600s
+            keepalive_interval 30s
+
+            # Buffer boyutları
+            read_buffer  32KiB
+            write_buffer 32KiB
+        }
+    }
+}
